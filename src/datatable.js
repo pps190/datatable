@@ -39,6 +39,10 @@ class DataTable {
         this.initializeComponents();
 
         if (this.options.data) {
+            if (document.title === 'Gross Profit') {
+                const total = this.options.data.pop();
+                this.options.data.splice(0, 0, total);
+            }
             this.refresh();
             this.columnmanager.applyDefaultSortOrder();
         }

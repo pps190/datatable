@@ -10,6 +10,7 @@ export default class BodyRenderer {
         this.bodyScrollable = instance.bodyScrollable;
         this.footer = this.instance.footer;
         this.log = instance.log;
+        this.header = instance.header;
     }
 
     renderRows(rows) {
@@ -53,13 +54,21 @@ export default class BodyRenderer {
         } else {
             this.hyperlist.refresh(this.bodyScrollable, config);
         }
-
+        if (document.title === 'Gross Profit') {
+            const row = this.bodyScrollable.children[1];
+            this.bodyScrollable.removeChild(row);
+            this.header.append(row);
+        }
         this.renderFooter();
     }
 
     render() {
         const rows = this.datamanager.getRowsForView();
         this.renderRows(rows);
+        if (document.title === 'Gross Profit') {
+            const row = this.bodyScrollable.children[1];
+            this.bodyScrollable.removeChild(row);
+        }
         // setDimensions requires atleast 1 row to exist in dom
         this.instance.setDimensions();
     }
