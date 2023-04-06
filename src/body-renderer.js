@@ -68,6 +68,8 @@ export default class BodyRenderer {
         if (document.title === 'Gross Profit') {
             const row = this.bodyScrollable.children[1];
             this.bodyScrollable.removeChild(row);
+            const newFirst = this.bodyScrollable.children[1];
+            this.bodyScrollable.append(newFirst);
         }
         // setDimensions requires atleast 1 row to exist in dom
         this.instance.setDimensions();
