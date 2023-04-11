@@ -54,10 +54,8 @@ export default class BodyRenderer {
         } else {
             this.hyperlist.refresh(this.bodyScrollable, config);
         }
+
         if (document.title === 'Gross Profit') {
-            const row = this.bodyScrollable.children[1];
-            this.bodyScrollable.removeChild(row);
-            this.header.append(row);
         }
         this.renderFooter();
     }
@@ -65,12 +63,7 @@ export default class BodyRenderer {
     render() {
         const rows = this.datamanager.getRowsForView();
         this.renderRows(rows);
-        if (document.title === 'Gross Profit') {
-            const row = this.bodyScrollable.children[1];
-            this.bodyScrollable.removeChild(row);
-            const newFirst = this.bodyScrollable.children[1];
-            this.bodyScrollable.append(newFirst);
-        }
+
         // setDimensions requires atleast 1 row to exist in dom
         this.instance.setDimensions();
     }
@@ -86,6 +79,26 @@ export default class BodyRenderer {
 
     getTotalRow() {
         const columns = this.datamanager.getColumns();
+        //save column width based from user preference
+        if (document.title === 'Gross Profit') {
+            let cache = localStorage.getItem(this.options.columnCacheKey);
+            console.log(this.options.columnCacheKey);
+            if (cache === null) {
+                cache = this.columns.map((column) => {
+                    return column.width;
+                });
+            } else {
+                cache = JSON.parse(cache);
+            }
+            if (this.columns.length !== cache.length) {
+                cache = this.columns.map((column) => {
+                    return column.width;
+                });
+            }
+            localStorage.setItem(this.options.columnCacheKey, JSON.stringify(cache));
+            console.log(this.options.columnCacheKey);
+        }
+
         const totalRowTemplate = columns.map(col => {
             let content = null;
             if (['_rowIndex', '_checkbox'].includes(col.id)) {
