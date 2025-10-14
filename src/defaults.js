@@ -55,7 +55,7 @@ export default function getDefaultOptions(instance) {
         getEditor: null,
         serialNoColumn: true,
         checkboxColumn: false,
-        clusterize: true,
+        clusterize: false,
         logs: false,
         layout: 'fixed', // fixed, fluid, ratio
         noDataMessage: instance.translate('No Data'),
