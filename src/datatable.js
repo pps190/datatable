@@ -71,6 +71,18 @@ class DataTable {
             ...options.headerDropdown
         ];
 
+        // Auto-set columnCacheKey from Frappe query report name if not provided
+        if (!this.options.columnCacheKey && typeof window !== 'undefined') {
+            try {
+                // Check if we're in a Frappe query report context
+                if (window.frappe && window.frappe.query_report && window.frappe.query_report.report_name) {
+                    this.options.columnCacheKey = window.frappe.query_report.report_name;
+                }
+            } catch (e) {
+                // Silently ignore if frappe is not available
+            }
+        }
+
         // custom user events
         this.events = Object.assign(
             {}, this.DEFAULT_OPTIONS.events,
