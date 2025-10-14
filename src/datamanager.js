@@ -108,6 +108,9 @@ export default class DataManager {
                 col.id = col.id || col.content;
                 return col;
             });
+
+        // Restore column order from cache
+        this.restoreColumnOrder();
     }
 
     prepareCell(content, i) {
@@ -132,32 +135,44 @@ export default class DataManager {
         const row0 = this.getRow(0);
         if (!row0) return;
 
-        let cache = localStorage.getItem(this.options.columnCacheKey);
-        if (cache === null) {
-            cache = this.columns.map((column) => {
-                return column.width;
-            });
-            localStorage.setItem(this.options.columnCacheKey, JSON.stringify(cache));
-        } else {
-            cache = JSON.parse(cache);
-        }
-        if (this.columns.length !== cache.length) {
-            cache = this.columns.map((column) => {
-                return column.width;
-            });
-        }
-        localStorage.setItem(this.options.columnCacheKey, JSON.stringify(cache));
-
-        this.columns = this.columns.map((column, i) => {
-
-            const cellValue = row0[i].content;
-            if (!column.align && isNumeric(cellValue)) {
-                column.align = 'right';
+        // Only load cached widths if columnCacheKey is set
+        if (this.options.columnCacheKey) {
+            let cache = localStorage.getItem(this.options.columnCacheKey);
+            if (cache === null) {
+                cache = this.columns.map((column) => {
+                    return column.width;
+                });
+                localStorage.setItem(this.options.columnCacheKey, JSON.stringify(cache));
+            } else {
+                cache = JSON.parse(cache);
             }
-            column.width = cache[i];
+            if (this.columns.length !== cache.length) {
+                cache = this.columns.map((column) => {
+                    return column.width;
+                });
+            }
+            localStorage.setItem(this.options.columnCacheKey, JSON.stringify(cache));
 
-            return column;
-        });
+            this.columns = this.columns.map((column, i) => {
+
+                const cellValue = row0[i].content;
+                if (!column.align && isNumeric(cellValue)) {
+                    column.align = 'right';
+                }
+                column.width = cache[i];
+
+                return column;
+            });
+        } else {
+            // No caching - just set alignment
+            this.columns = this.columns.map((column, i) => {
+                const cellValue = row0[i].content;
+                if (!column.align && isNumeric(cellValue)) {
+                    column.align = 'right';
+                }
+                return column;
+            });
+        }
 
     }
 
@@ -365,6 +380,9 @@ export default class DataManager {
             row[index2] = newCell1;
             row[index1] = newCell2;
         });
+
+        // Save the new column order to cache
+        this.saveColumnOrder();
     }
 
     removeColumn(index) {
@@ -437,17 +455,30 @@ export default class DataManager {
 
     updateColumn(colIndex, keyValPairs) {
         const column = this.getColumn(colIndex);
-        let cache = JSON.parse(localStorage.getItem(this.options.columnCacheKey));
-        for (let key in keyValPairs) {
-            const newVal = keyValPairs[key];
-            if (newVal !== undefined) {
-                column[key] = newVal;
+
+        // Only update cache if columnCacheKey is set
+        if (this.options.columnCacheKey) {
+            let cache = JSON.parse(localStorage.getItem(this.options.columnCacheKey));
+            for (let key in keyValPairs) {
+                const newVal = keyValPairs[key];
+                if (newVal !== undefined) {
+                    column[key] = newVal;
+                }
+                if (key === 'width') {
+                    cache[colIndex] = newVal;
+                }
             }
-            if (key === 'width') {
-                cache[colIndex] = newVal;
+            localStorage.setItem(this.options.columnCacheKey, JSON.stringify(cache));
+        } else {
+            // No caching - just update the column
+            for (let key in keyValPairs) {
+                const newVal = keyValPairs[key];
+                if (newVal !== undefined) {
+                    column[key] = newVal;
+                }
             }
         }
-        localStorage.setItem(this.options.columnCacheKey, JSON.stringify(cache));
+
         return column;
     }
 
@@ -641,6 +672,104 @@ export default class DataManager {
 
     getCheckboxHTML() {
         return '<input type="checkbox" />';
+    }
+
+    saveColumnOrder() {
+        if (!this.options.columnCacheKey) return;
+
+        // Save the current column order as an array of column IDs
+        const columnOrder = this.columns.map(col => col.id);
+        const cacheKey = this.options.columnCacheKey + '_order';
+
+        try {
+            localStorage.setItem(cacheKey, JSON.stringify(columnOrder));
+        } catch (e) {
+            console.warn('Failed to save column order to localStorage:', e);
+        }
+    }
+
+    restoreColumnOrder() {
+        if (!this.options.columnCacheKey) return;
+
+        const cacheKey = this.options.columnCacheKey + '_order';
+        let cachedOrder;
+
+        try {
+            cachedOrder = localStorage.getItem(cacheKey);
+        } catch (e) {
+            console.warn('Failed to read column order from localStorage:', e);
+            return;
+        }
+
+        if (!cachedOrder) return;
+
+        try {
+            const columnIdOrder = JSON.parse(cachedOrder);
+
+            // Create a map of column ID to its current index
+            const idToCurrentIndex = new Map();
+            this.columns.forEach((col, index) => {
+                idToCurrentIndex.set(col.id, index);
+            });
+
+            // Build the reordered columns array
+            const reorderedColumns = [];
+            const usedIds = new Set();
+
+            // First, add columns in the cached order
+            columnIdOrder.forEach(id => {
+                if (idToCurrentIndex.has(id)) {
+                    const currentIndex = idToCurrentIndex.get(id);
+                    reorderedColumns.push(this.columns[currentIndex]);
+                    usedIds.add(id);
+                }
+            });
+
+            // Then, add any new columns that weren't in the cache
+            this.columns.forEach(col => {
+                if (!usedIds.has(col.id)) {
+                    reorderedColumns.push(col);
+                }
+            });
+
+            // Only reorder if there's a meaningful difference
+            if (reorderedColumns.length !== this.columns.length) return;
+
+            // Create mapping from old index to new index
+            const oldToNewIndex = new Map();
+            this.columns.forEach((col, oldIndex) => {
+                const newIndex = reorderedColumns.findIndex(c => c.id === col.id);
+                if (newIndex !== -1) {
+                    oldToNewIndex.set(oldIndex, newIndex);
+                }
+            });
+
+            // Update the columns array with new indices
+            reorderedColumns.forEach((col, newIndex) => {
+                col.colIndex = newIndex;
+            });
+            this.columns = reorderedColumns;
+
+            // Reorder cells in each row
+            this.rows.forEach(row => {
+                const reorderedRow = new Array(row.length);
+
+                row.forEach((cell, oldIndex) => {
+                    const newIndex = oldToNewIndex.get(oldIndex);
+                    if (newIndex !== undefined) {
+                        const newCell = Object.assign({}, cell, { colIndex: newIndex });
+                        reorderedRow[newIndex] = newCell;
+                    }
+                });
+
+                // Copy reordered cells back to row
+                reorderedRow.forEach((cell, index) => {
+                    row[index] = cell;
+                });
+            });
+        } catch (e) {
+            console.warn('Failed to restore column order:', e);
+        }
     }
 }
 
