@@ -77,7 +77,7 @@ export function copyTextToClipboard(text) {
 }
 
 export function isNumeric(val) {
-    return !isNaN(val);
+    return typeof val === 'number' && !isNaN(val);
 }
 
 export let throttle = _throttle;
