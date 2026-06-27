@@ -225,11 +225,15 @@ $.hasHorizontalOverflow = function (element) {
 $.measureTextWidth = function (text) {
     const div = document.createElement('div');
     div.style.position = 'absolute';
+    div.style.top = '-9999px';
+    div.style.left = '-9999px';
     div.style.visibility = 'hidden';
     div.style.height = 'auto';
     div.style.width = 'auto';
     div.style.whiteSpace = 'nowrap';
     div.innerText = text;
     document.body.appendChild(div);
-    return div.clientWidth + 1;
+    const width = div.clientWidth + 1;
+    document.body.removeChild(div);
+    return width;
 };

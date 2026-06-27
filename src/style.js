@@ -352,6 +352,37 @@ export default class Style {
         // remove the body height, so that it resets to it's original
         $.removeStyle(this.bodyScrollable, 'height');
 
+        // On query report pages, fill the remaining viewport below this element.
+        // getBoundingClientRect().top already accounts for the navbar, page-head,
+        // and however many filter rows are above — no need to measure them separately.
+        // Only the chrome below the scrollable area (report footer + page bottom
+        // margin) needs to be subtracted.
+        //
+        // On initial render the layout may not have settled (e.g. tree reports
+        // expand all rows first, pushing the element far down the page). If the
+        // measured top produces a height below the CSS minimum we defer one frame
+        // and retry. If still not settled we skip — the subsequent setBodyStyle()
+        // call that fires after the tree collapses will apply the correct height.
+        if (this.bodyScrollable.closest && this.bodyScrollable.closest('#page-query-report')) {
+            const pageBottomMargin = parseFloat(
+                getComputedStyle(document.documentElement).getPropertyValue('--page-bottom-margin') || '60'
+            );
+            const bottomReserved = pageBottomMargin + 73 + 5; // report footer + page margin + gap
+            const applyHeight = () => {
+                const top = this.bodyScrollable.getBoundingClientRect().top;
+                const h = window.innerHeight - top - bottomReserved;
+                if (h >= 100) {
+                    $.style(this.bodyScrollable, { height: h + 'px' });
+                }
+            };
+            const top = this.bodyScrollable.getBoundingClientRect().top;
+            if (window.innerHeight - top - bottomReserved >= 100) {
+                applyHeight();
+            } else {
+                requestAnimationFrame(applyHeight);
+            }
+        }
+
         // when there are less rows than the container
         // adapt the container height
         let bodyHeight = $.getStyle(this.bodyScrollable, 'height');
@@ -361,17 +392,23 @@ export default class Style {
         let height;
 
         if (scrollHeight < bodyHeight) {
-            height = scrollHeight;
+            // On query report pages the viewport-filling height must not be
+            // shrunk to match the current hyperlist row count — tree reports
+            // collapse to a small number of visible rows after initial render,
+            // which would otherwise override the correct container height.
+            if (!(this.bodyScrollable.closest && this.bodyScrollable.closest('#page-query-report'))) {
+                height = scrollHeight;
 
-            // account for scrollbar size when
-            // there is horizontal overflow
-            if (hasHorizontalOverflow) {
-                height += $.scrollbarSize();
+                // account for scrollbar size when
+                // there is horizontal overflow
+                if (hasHorizontalOverflow) {
+                    height += $.scrollbarSize();
+                }
+
+                $.style(this.bodyScrollable, {
+                    height: height + 'px'
+                });
             }
-
-            $.style(this.bodyScrollable, {
-                height: height + 'px'
-            });
         }
 
         const verticalOverflow = this.bodyScrollable.scrollHeight - this.bodyScrollable.offsetHeight;
