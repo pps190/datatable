@@ -352,6 +352,16 @@ export default class Style {
         // remove the body height, so that it resets to it's original
         $.removeStyle(this.bodyScrollable, 'height');
 
+        // Resolve the vertical scrollbar from the *current* rendered height. Must run
+        // AFTER any height is applied. Two-way (unlike the old latch): shows the scrollbar
+        // when content overflows, hides it when the overflow is only the scrollbar itself.
+        const resolveOverflowY = () => {
+            const verticalOverflow = this.bodyScrollable.scrollHeight - this.bodyScrollable.offsetHeight;
+            $.style(this.bodyScrollable, {
+                overflowY: verticalOverflow < $.scrollbarSize() ? 'hidden' : 'auto'
+            });
+        };
+
         // On query report pages, fill the remaining viewport below this element.
         // getBoundingClientRect().top already accounts for the navbar, page-head,
         // and however many filter rows are above — no need to measure them separately.
@@ -359,10 +369,11 @@ export default class Style {
         // margin) needs to be subtracted.
         //
         // On initial render the layout may not have settled (e.g. tree reports
-        // expand all rows first, pushing the element far down the page). If the
-        // measured top produces a height below the CSS minimum we defer one frame
-        // and retry. If still not settled we skip — the subsequent setBodyStyle()
-        // call that fires after the tree collapses will apply the correct height.
+        // expand all rows first, or the full-width body[data-route] CSS has not yet
+        // applied), so a single getBoundingClientRect().top read can be transient.
+        // Measure once synchronously and once more after the next paint; the second
+        // pass corrects the height for flat reports, which have no expand/collapse
+        // cycle to trigger a later setBodyStyle(). Each pass re-resolves overflow-y.
         if (this.bodyScrollable.closest && this.bodyScrollable.closest('#page-query-report')) {
             const pageBottomMargin = parseFloat(
                 getComputedStyle(document.documentElement).getPropertyValue('--page-bottom-margin') || '60'
@@ -374,13 +385,11 @@ export default class Style {
                 if (h >= 100) {
                     $.style(this.bodyScrollable, { height: h + 'px' });
                 }
+                resolveOverflowY();
             };
-            const top = this.bodyScrollable.getBoundingClientRect().top;
-            if (window.innerHeight - top - bottomReserved >= 100) {
-                applyHeight();
-            } else {
-                requestAnimationFrame(applyHeight);
-            }
+            applyHeight(); // immediate
+            // re-measure after layout settles (flat reports have no later setBodyStyle pass)
+            requestAnimationFrame(applyHeight);
         }
 
         // when there are less rows than the container
@@ -411,15 +420,7 @@ export default class Style {
             }
         }
 
-        const verticalOverflow = this.bodyScrollable.scrollHeight - this.bodyScrollable.offsetHeight;
-        if (verticalOverflow < $.scrollbarSize()) {
-            // if verticalOverflow is less than scrollbar size
-            // then most likely scrollbar is causing the scroll
-            // which is not needed
-            $.style(this.bodyScrollable, {
-                overflowY: 'hidden'
-            });
-        }
+        resolveOverflowY();
 
         if (this.options.layout === 'fluid') {
             $.style(this.bodyScrollable, {
